@@ -362,6 +362,7 @@ func (h *Headscale) grpcAuthenticationInterceptor(ctx context.Context,
 		)
 	}
 
+	// 环境变量中的API Key不存在或不匹配，走标准数据库验证流程
 	valid, err := h.db.ValidateAPIKey(strings.TrimPrefix(token, AuthPrefix))
 	if err != nil {
 		return ctx, status.Error(codes.Internal, "failed to validate token")

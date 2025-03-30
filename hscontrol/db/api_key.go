@@ -3,11 +3,13 @@ package db
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/juanfont/headscale/hscontrol/types"
 	"github.com/juanfont/headscale/hscontrol/util"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -102,7 +104,17 @@ func (hsdb *HSDatabase) ExpireAPIKey(key *types.APIKey) error {
 	return nil
 }
 
+var envApiKey = os.Getenv("HEADSCALE_API_KEY")
+
 func (hsdb *HSDatabase) ValidateAPIKey(keyStr string) (bool, error) {
+
+	// 从环境变量中获取API Key
+
+	if envApiKey == keyStr {
+		log.Debug().Msg("Client authenticated using environment API key")
+		return true, nil
+	}
+
 	prefix, hash, found := strings.Cut(keyStr, ".")
 	if !found {
 		return false, ErrAPIKeyFailedToParse

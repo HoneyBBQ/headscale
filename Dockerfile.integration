@@ -2,25 +2,32 @@
 # and are in no way endorsed by Headscale's maintainers as an
 # official nor supported release or distribution.
 
-FROM docker.io/golang:1.24-bookworm
+# 第一阶段：构建环境
+FROM docker.io/golang:alpine AS build-env
 ARG VERSION=dev
 ENV GOPATH /go
 WORKDIR /go/src/headscale
 
-RUN apt-get update \
-  && apt-get install --no-install-recommends --yes less jq sqlite3 dnsutils \
-  && rm -rf /var/lib/apt/lists/* \
-  && apt-get clean
-RUN mkdir -p /var/run/headscale
+# 设置Go环境变量
+RUN go env -w GO111MODULE=on && \
+    go env -w GOPROXY=https://goproxy.cn,direct
 
-COPY go.mod go.sum /go/src/headscale/
-RUN go mod download
+# 复制源代码并构建
+COPY go.mod go.sum ./
+RUN go mod tidy
 
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go install -trimpath -a ./cmd/headscale && test -e /go/bin/headscale
 
-RUN CGO_ENABLED=0 GOOS=linux go install -a ./cmd/headscale && test -e /go/bin/headscale
+# 第二阶段：运行环境
+FROM alpine:latest
+RUN mkdir -p /var/run/headscale /etc/headscale
 
-# Need to reset the entrypoint or everything will run as a busybox script
-ENTRYPOINT []
+# 从构建阶段复制二进制文件
+COPY --from=build-env /go/bin/headscale /usr/local/bin/
+
+# 设置容器配置
+WORKDIR /etc/headscale
 EXPOSE 8080/tcp
-CMD ["headscale"]
+ENTRYPOINT ["/usr/local/bin/headscale"]
+CMD ["serve"]
